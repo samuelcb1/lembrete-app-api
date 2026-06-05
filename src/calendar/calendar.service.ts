@@ -40,10 +40,12 @@ export class CalendarService {
     }
 
     const calendar = google.calendar({ version: 'v3', auth: authClient });
-    const startDate = new Date(reminder.startDateTime).toISOString();
-    const endDate = new Date(
-      reminder.endDateTime ?? new Date(new Date(reminder.startDateTime).getTime() + 60 * 60 * 1000).toISOString(),
-    ).toISOString();
+    const startDate = reminder.startDateTime;
+    const endDate = reminder.endDateTime ?? (() => {
+      const d = new Date(reminder.startDateTime.endsWith('Z') ? reminder.startDateTime : reminder.startDateTime + 'Z');
+      d.setUTCHours(d.getUTCHours() + 1);
+      return d.toISOString().slice(0, 19);
+    })();
     this.logger.log(`Event times — start: ${startDate} | end: ${endDate} | raw startDateTime: ${reminder.startDateTime} | raw endDateTime: ${reminder.endDateTime ?? 'not provided'}`);
 
     const event = {
