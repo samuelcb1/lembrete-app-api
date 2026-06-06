@@ -40,24 +40,40 @@ export class CalendarService {
     }
 
     const calendar = google.calendar({ version: 'v3', auth: authClient });
-    const startDate = reminder.startDateTime;
-    const endDate = reminder.endDateTime ?? (() => {
-      const d = new Date(reminder.startDateTime.endsWith('Z') ? reminder.startDateTime : reminder.startDateTime + 'Z');
+    const timeZone = reminder.timeZone ?? 'America/Sao_Paulo';
+    const hasExplicitOffset = (dt: string) =>
+      dt.endsWith('Z') || dt.endsWith('z') || /[+-]\d{2}:\d{2}$/.test(dt);
+
+    // If client sends UTC (with Z), convert to local São Paulo time so Google Calendar
+    // interprets it correctly using the timeZone field (UTC-3, no DST since 2019).
+    const SP_OFFSET_MS = -3 * 60 * 60 * 1000;
+    const toLocalSP = (dt: string): string => {
+      if (!hasExplicitOffset(dt)) return dt;
+      const utcMs = new Date(dt).getTime();
+      return new Date(utcMs + SP_OFFSET_MS).toISOString().slice(0, 19);
+    };
+
+    const startDate = timeZone === 'America/Sao_Paulo' ? toLocalSP(reminder.startDateTime) : reminder.startDateTime;
+    const endDate = (() => {
+      if (reminder.endDateTime) {
+        return timeZone === 'America/Sao_Paulo' ? toLocalSP(reminder.endDateTime) : reminder.endDateTime;
+      }
+      const d = new Date(hasExplicitOffset(startDate) ? startDate : startDate + 'Z');
       d.setUTCHours(d.getUTCHours() + 1);
       return d.toISOString().slice(0, 19);
     })();
-    this.logger.log(`Event times — start: ${startDate} | end: ${endDate} | raw startDateTime: ${reminder.startDateTime} | raw endDateTime: ${reminder.endDateTime ?? 'not provided'}`);
+    this.logger.log(`Event times — start: ${startDate} | end: ${endDate} | raw startDateTime: ${reminder.startDateTime} | raw endDateTime: ${reminder.endDateTime ?? 'not provided'} | timeZone: ${timeZone}`);
 
     const event = {
       summary: reminder.summary,
       description: reminder.description,
       start: {
         dateTime: startDate,
-        timeZone: reminder.timeZone ?? 'America/Sao_Paulo',
+        timeZone,
       },
       end: {
         dateTime: endDate,
-        timeZone: reminder.timeZone ?? 'America/Sao_Paulo',
+        timeZone,
       },
     };
 
